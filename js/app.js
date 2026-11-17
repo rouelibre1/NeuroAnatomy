@@ -612,6 +612,8 @@ function startQuiz(mode = state.quiz?.mode || 'find') {
   state.selection = new Set(); state.primary = null; state.catFocus = null;
   state.quiz = { mode, score: state.quiz?.score ?? 0, total: state.quiz?.total ?? 0, target: null };
   $('quiz').hidden = false;
+  $('app').dataset.quiz = 'on';
+  resize();
   $('qmode-find').setAttribute('aria-pressed', String(mode === 'find'));
   $('qmode-name').setAttribute('aria-pressed', String(mode === 'name'));
   nextQuestion();
@@ -697,6 +699,8 @@ function revealAnswer() {
 function stopQuiz() {
   state.quiz = null;
   $('quiz').hidden = true;
+  delete $('app').dataset.quiz;
+  resize();
   state.selection = new Set(); state.primary = null;
   applyState();
 }
@@ -816,7 +820,8 @@ function bindUI() {
     if (ev.key === 'Escape' && !state.quiz && document.activeElement !== $('search')) clearSelection();
   });
   controls.addEventListener('change', () => requestOcclusion(90));
-  window.addEventListener('resize', resize);
+  // la scène change de taille quand la colonne du quiz s'ouvre ou se ferme
+  new ResizeObserver(resize).observe(stage);
 }
 function hideTooltip() { $('tooltip').hidden = true; }
 function setHover(s) {
