@@ -90,10 +90,23 @@ async function fetchWithProgress(url, onProgress) {
   return out.buffer;
 }
 
+// meshes.bin ; à défaut (hébergeur qui ne sert pas les .bin), sa version base64 meshes.b64.txt
+async function loadMeshBinary(onProgress) {
+  try {
+    return await fetchWithProgress('./data/meshes.bin', onProgress);
+  } catch (err) {
+    const buf = await fetchWithProgress('./data/meshes.b64.txt', onProgress);
+    const bin = atob(new TextDecoder().decode(buf).trim());
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out.buffer;
+  }
+}
+
 async function load() {
   const [index, bin] = await Promise.all([
     fetch('./data/meshes.json').then((r) => r.json()),
-    fetchWithProgress('./data/meshes.bin', (p) => { $('loading-bar').style.width = `${Math.round(p * 100)}%`; }),
+    loadMeshBinary((p) => { $('loading-bar').style.width = `${Math.round(p * 100)}%`; }),
   ]);
 
   // couleurs : teinte de la catégorie, variations entre structures voisines
