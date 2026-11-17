@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+</head>
+<body>
+<!-- ARTIFACT-START -->
+<title>Atlas cérébral 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Explorez en 3D les structures du cerveau humain : cliquez pour voir leur nom et leur position.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Figtree:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Mise en page : application plein écran — panneau « atlas » à gauche, scène 3D au centre,
+   fiche de la structure sélectionnée flottante en bas à droite de la scène. */
+:root {
+  --bg: #eef1f4;
+  --panel: #f8f9fb;
+  --stage: #dfe5ec;
+  --fg: #18202b;
+  --muted: #5b6676;
+  --line: #d3d9e1;
+  --hover: #e6eaf0;
+  --accent: #b86e00;       /* or de la surbrillance */
+  --accent-soft: #f6e3c4;
+  --accent-fg: #ffffff;
+  --good: #2f7d4f;
+  --bad: #b23a3a;
+  --shadow: 0 6px 24px rgba(20, 30, 45, .14);
+  --font-display: "Bricolage Grotesque", "Figtree", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141b; --panel: #151b24; --stage: #0b1016; --fg: #e5eaf1; --muted: #93a0b2;
+    --line: #253041; --hover: #1d2531; --accent: #ffb53d; --accent-soft: #3a2b12; --accent-fg: #1a1205;
+    --good: #5cc48a; --bad: #f07a7a; --shadow: 0 8px 28px rgba(0, 0, 0, .45);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141b; --panel: #151b24; --stage: #0b1016; --fg: #e5eaf1; --muted: #93a0b2;
+  --line: #253041; --hover: #1d2531; --accent: #ffb53d; --accent-soft: #3a2b12; --accent-fg: #1a1205;
+  --good: #5cc48a; --bad: #f07a7a; --shadow: 0 8px 28px rgba(0, 0, 0, .45);
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 14px/1.45 var(--font-body);
+  overflow: hidden;
+}
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.app { display: grid; grid-template-columns: 340px 1fr; height: 100%; }
+
+/* ---------- Panneau atlas ---------- */
+.panel {
+  display: flex; flex-direction: column; min-height: 0; min-width: 0;
+  background: var(--panel); border-right: 1px solid var(--line);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: 16px;
+}
+.brand { padding-block: 18px 12px; }
+.brand h1 {
+  margin: 0; font: 700 22px/1.1 var(--font-display); letter-spacing: -.01em;
+  text-wrap: balance;
+}
+.brand p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+
+.search { position: relative; margin-bottom: 10px; }
+.search input {
+  width: 100%; box-sizing: border-box; padding: 9px 12px 9px 34px;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--bg);
+}
+.search svg { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--muted); }
+
+.hemis { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; align-items: center; }
+.hemis-lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-right: 2px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px;
+  border: 1px solid var(--line); border-radius: 999px; background: transparent; cursor: pointer;
+  font-size: 12.5px; font-weight: 500;
+}
+.chip[aria-pressed="true"] { background: var(--fg); color: var(--panel); border-color: var(--fg); }
+.chip:hover { border-color: var(--muted); }
+
+.tree { flex: 1; overflow-y: auto; min-height: 0; margin-right: -8px; padding-right: 8px; padding-bottom: 16px; }
+.cat { border-top: 1px solid var(--line); }
+.cat-head { display: flex; align-items: center; gap: 6px; padding: 8px 0; }
+.cat-toggle {
+  flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0;
+  background: none; border: 0; padding: 0; cursor: pointer; text-align: left;
+  font-weight: 600; font-size: 13.5px;
+}
+.cat-toggle .caret { transition: transform .15s; color: var(--muted); flex: none; }
+.cat[data-open="true"] .caret { transform: rotate(90deg); }
+.swatch { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.cat-count { color: var(--muted); font-weight: 400; font-size: 12px; }
+.icon-btn {
+  display: inline-grid; place-items: center; width: 28px; height: 28px; flex: none;
+  border: 1px solid transparent; border-radius: 7px; background: none; cursor: pointer; color: var(--muted);
+}
+.icon-btn:hover { background: var(--hover); color: var(--fg); }
+.icon-btn[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
+.cat-items { list-style: none; margin: 0 0 8px; padding: 0; }
+.cat[data-open="false"] .cat-items { display: none; }
+.item {
+  display: flex; align-items: center; gap: 6px; padding: 3px 4px 3px 18px; border-radius: 7px;
+}
+.item:hover { background: var(--hover); }
+.item.selected { background: var(--accent-soft); }
+.item.selected .item-name { color: var(--fg); font-weight: 600; }
+.item.off .item-name { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line); }
+.item-name {
+  flex: 1; min-width: 0; background: none; border: 0; padding: 4px 0; cursor: pointer; text-align: left;
+  font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.side {
+  font: 500 10.5px/1 var(--font-mono); color: var(--muted); border: 1px solid var(--line);
+  border-radius: 4px; padding: 2px 4px; flex: none;
+}
+.eye { width: 24px; height: 24px; }
+.panel-foot { padding-block: 10px max(12px, env(safe-area-inset-bottom, 0px)); color: var(--muted); font-size: 11.5px; border-top: 1px solid var(--line); }
+.panel-foot a { color: inherit; }
+
+/* ---------- Scène ---------- */
+.stage { position: relative; min-width: 0; background: var(--stage); overflow: hidden; }
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.toolbar {
+  position: absolute; top: 12px; left: 12px; right: 12px;
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-start; pointer-events: none;
+}
+.toolbar > * { pointer-events: auto; }
+.group {
+  display: flex; align-items: center; gap: 2px; padding: 3px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.group .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 0 6px 0 8px; }
+.tbtn {
+  border: 0; background: none; padding: 6px 9px; border-radius: 7px; cursor: pointer; font-size: 12.5px; font-weight: 500;
+  white-space: nowrap;
+}
+.tbtn:hover { background: var(--hover); }
+.tbtn[aria-pressed="true"] { background: var(--fg); color: var(--panel); }
+.tbtn.primary { background: var(--accent); color: var(--accent-fg); }
+.tbtn.primary:hover { filter: brightness(1.05); }
+.group select { border: 0; background: none; padding: 5px 4px; cursor: pointer; font-size: 12.5px; }
+.group input[type="range"] { width: 110px; accent-color: var(--accent); }
+.spacer { flex: 1; }
+.menu-btn { display: none; }
+
+.labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.tag {
+  position: absolute; left: 0; top: 0; white-space: nowrap; transform-origin: 0 50%;
+  font-size: 11.5px; font-weight: 600; color: var(--fg);
+  padding: 2px 7px 2px 6px; border-radius: 6px; background: color-mix(in srgb, var(--panel) 88%, transparent);
+  border: 1px solid var(--line); display: flex; align-items: center; gap: 5px;
+  pointer-events: auto; cursor: pointer;
+}
+.tag::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--dot, var(--muted)); flex: none; }
+.tag.sel { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-size: 13px; z-index: 2; }
+.tag.sel::before { background: var(--accent-fg); }
+
+.tooltip {
+  position: absolute; pointer-events: none; padding: 5px 9px; border-radius: 7px;
+  background: var(--fg); color: var(--panel); font-size: 12.5px; font-weight: 500; white-space: nowrap;
+  transform: translate(14px, 14px); z-index: 5;
+}
+
+.card {
+  position: absolute; right: max(12px, env(safe-area-inset-right, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  width: min(380px, calc(100% - 24px)); box-sizing: border-box;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+  padding: 14px 16px 12px; z-index: 4;
+}
+.card .eyebrow { display: flex; align-items: center; gap: 8px; font-size: 11.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.card h2 { margin: 6px 0 4px; font: 700 20px/1.15 var(--font-display); text-wrap: balance; }
+.card .hemi { color: var(--muted); font-size: 13px; }
+.card p { margin: 8px 0 10px; font-size: 13.5px; max-width: 65ch; }
+.coords { font: 400 11.5px/1.4 var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.card-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.btn {
+  border: 1px solid var(--line); background: var(--bg); padding: 6px 10px; border-radius: 8px; cursor: pointer; font-size: 12.5px; font-weight: 500;
+}
+.btn:hover { border-color: var(--muted); }
+.card .close { position: absolute; top: 8px; right: 8px; }
+
+.hint {
+  position: absolute; left: 50%; bottom: max(16px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px;
+  font-size: 12.5px; color: var(--muted); box-shadow: var(--shadow); white-space: nowrap;
+}
+
+.restore {
+  position: absolute; left: max(12px, env(safe-area-inset-left, 0px)); bottom: max(12px, env(safe-area-inset-bottom, 0px));
+  background: var(--accent); color: var(--accent-fg); border-color: var(--accent); box-shadow: var(--shadow); z-index: 4;
+}
+.loading {
+  position: absolute; inset: 0; display: grid; place-items: center; z-index: 10; background: var(--stage);
+  font-size: 13px; color: var(--muted);
+}
+.loading .bar { width: 220px; height: 4px; border-radius: 4px; background: var(--line); overflow: hidden; margin-top: 10px; }
+.loading .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+/* ---------- Quiz ---------- */
+.quiz {
+  position: absolute; left: 50%; top: 64px; transform: translateX(-50%); z-index: 6;
+  width: min(460px, calc(100% - 24px)); box-sizing: border-box;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow);
+  padding: 12px 16px 14px;
+}
+.quiz-top { display: flex; align-items: center; gap: 8px; }
+.quiz-top .seg { display: flex; gap: 2px; background: var(--bg); border-radius: 8px; padding: 2px; }
+.quiz-top .seg button { border: 0; background: none; padding: 4px 9px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; }
+.quiz-top .seg button[aria-pressed="true"] { background: var(--panel); box-shadow: 0 1px 3px rgba(0,0,0,.15); }
+.score { margin-left: auto; font: 500 12.5px var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+.quiz-q { margin: 10px 0 2px; font-size: 13px; color: var(--muted); }
+.quiz-target { font: 700 19px/1.2 var(--font-display); text-wrap: balance; }
+.quiz-feedback { min-height: 20px; margin-top: 6px; font-size: 13px; font-weight: 500; }
+.quiz-feedback.ok { color: var(--good); }
+.quiz-feedback.ko { color: var(--bad); }
+.choices { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 8px; }
+.choices button { text-align: left; padding: 8px 10px; border: 1px solid var(--line); background: var(--bg); border-radius: 8px; cursor: pointer; font-size: 13px; }
+.choices button:hover { border-color: var(--muted); }
+.choices button.ok { border-color: var(--good); color: var(--good); font-weight: 600; }
+.choices button.ko { border-color: var(--bad); color: var(--bad); }
+.quiz-actions { display: flex; gap: 6px; margin-top: 10px; }
+.quiz-scope { font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+
+/* ---------- Téléphone ---------- */
+@media (max-width: 820px) {
+  .app { grid-template-columns: 1fr; }
+  .panel {
+    position: fixed; inset: 0 auto 0 0; width: min(340px, 88vw); z-index: 20; box-shadow: var(--shadow);
+    transform: translateX(-105%); transition: transform .2s ease;
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  .app[data-drawer="open"] .panel { transform: none; }
+  .menu-btn { display: inline-flex; }
+  .toolbar {
+    left: 0; right: 0; top: 8px; flex-wrap: nowrap; overflow-x: auto; pointer-events: auto;
+    padding: 2px max(12px, env(safe-area-inset-right, 0px)) 10px max(12px, env(safe-area-inset-left, 0px));
+    scrollbar-width: none;
+  }
+  .toolbar::-webkit-scrollbar { display: none; }
+  .toolbar > * { flex: none; }
+  .toolbar .spacer { display: none; }
+  .group input[type="range"] { width: 80px; }
+  .hide-sm { display: none; }
+  .quiz { top: auto; bottom: max(12px, env(safe-area-inset-bottom, 0px)); }
+  .choices { grid-template-columns: 1fr; }
+  .hint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+</style>
+
+<div class="app" id="app" data-drawer="closed">
+  <aside class="panel" id="panel" aria-label="Liste des structures">
+    <div class="brand">
+      <h1>Atlas cérébral 3D</h1>
+      <p>Cliquez une structure dans la scène ou dans la liste pour l'afficher en surbrillance.</p>
+    </div>
+    <label class="search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="search" type="search" placeholder="Rechercher (ex. : hippocampe, Broca…)" autocomplete="off" aria-label="Rechercher une structure">
+    </label>
+    <div class="hemis" role="group" aria-label="Parties visibles">
+      <span class="hemis-lbl">Afficher</span>
+      <button class="chip" id="hemi-L" aria-pressed="true" title="Hémisphère gauche">Gauche</button>
+      <button class="chip" id="hemi-R" aria-pressed="true" title="Hémisphère droit">Droit</button>
+      <button class="chip" id="hemi-M" aria-pressed="true" title="Structures médianes (corps calleux, tronc cérébral, 3e et 4e ventricules…)">Médian</button>
+    </div>
+    <div class="tree" id="tree"></div>
+    <div class="panel-foot">
+      Atlas : Desikan-Killiany + segmentation sous-corticale (FreeSurfer, cerveau moyen cvs_avg35 dans l'espace MNI152). Coordonnées en mm.
+    </div>
+  </aside>
+
+  <main class="stage" id="stage">
+    <canvas id="canvas" aria-label="Modèle 3D du cerveau"></canvas>
+    <div class="labels" id="labels"></div>
+    <div class="tooltip" id="tooltip" hidden></div>
+
+    <div class="toolbar">
+      <button class="group tbtn menu-btn" id="menu-btn" aria-label="Afficher la liste des structures">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+        Structures
+      </button>
+      <div class="group" role="group" aria-label="Vues">
+        <span class="lbl hide-sm">Vue</span>
+        <button class="tbtn" data-view="left" title="Vue latérale gauche">Gauche</button>
+        <button class="tbtn" data-view="right" title="Vue latérale droite">Droite</button>
+        <button class="tbtn" data-view="front" title="Vue antérieure">Avant</button>
+        <button class="tbtn" data-view="back" title="Vue postérieure">Arrière</button>
+        <button class="tbtn" data-view="top" title="Vue supérieure">Dessus</button>
+        <button class="tbtn" data-view="bottom" title="Vue inférieure">Dessous</button>
+      </div>
+      <div class="group" role="group" aria-label="Affichage">
+        <button class="tbtn" id="labels-btn" aria-pressed="false" title="Afficher le nom des structures visibles">Noms</button>
+        <span class="lbl">Autres</span>
+        <select id="others" aria-label="Affichage des autres structures pendant une sélection">
+          <option value="ghost">transparentes</option>
+          <option value="normal">normales</option>
+          <option value="hidden">masquées</option>
+        </select>
+      </div>
+      <div class="group" role="group" aria-label="Coupe">
+        <span class="lbl">Coupe</span>
+        <select id="clip-axis" aria-label="Plan de coupe">
+          <option value="none">aucune</option>
+          <option value="sagittal">sagittale</option>
+          <option value="coronal">coronale</option>
+          <option value="axial">axiale</option>
+        </select>
+        <input id="clip-pos" type="range" min="0" max="1000" value="500" aria-label="Position de la coupe" hidden>
+        <button class="tbtn" id="clip-flip" title="Inverser le côté conservé" hidden>⇄</button>
+      </div>
+      <span class="spacer"></span>
+      <button class="group tbtn primary" id="quiz-btn">Quiz</button>
+    </div>
+
+    <section class="quiz" id="quiz" hidden aria-live="polite">
+      <div class="quiz-top">
+        <div class="seg" role="group" aria-label="Type de question">
+          <button id="qmode-find" aria-pressed="true">Trouver</button>
+          <button id="qmode-name" aria-pressed="false">Nommer</button>
+        </div>
+        <span class="score" id="quiz-score">0 / 0</span>
+        <button class="icon-btn" id="quiz-close" aria-label="Quitter le quiz">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </div>
+      <div class="quiz-q" id="quiz-q">Cliquez dans la scène sur :</div>
+      <div class="quiz-target" id="quiz-target"></div>
+      <div class="choices" id="quiz-choices" hidden></div>
+      <div class="quiz-feedback" id="quiz-feedback"></div>
+      <div class="quiz-actions">
+        <button class="btn" id="quiz-skip">Montrer la réponse</button>
+        <button class="btn" id="quiz-next">Question suivante</button>
+      </div>
+      <div class="quiz-scope" id="quiz-scope"></div>
+    </section>
+
+    <article class="card" id="card" hidden aria-live="polite">
+      <button class="icon-btn close" id="card-close" aria-label="Fermer la fiche">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+      </button>
+      <div class="eyebrow"><span class="swatch" id="card-swatch"></span><span id="card-cat"></span></div>
+      <h2 id="card-name"></h2>
+      <div class="hemi" id="card-hemi"></div>
+      <p id="card-desc"></p>
+      <div class="coords" id="card-coords"></div>
+      <div class="card-actions">
+        <button class="btn" id="act-focus">Centrer</button>
+        <button class="btn" id="act-isolate">Isoler</button>
+        <button class="btn" id="act-hide">Masquer</button>
+        <button class="btn" id="act-both">Voir les deux côtés</button>
+      </div>
+    </article>
+
+    <button class="btn restore" id="restore" hidden>Tout réafficher</button>
+    <div class="hint" id="hint">Glisser : tourner · Molette / pincer : zoomer · Clic droit : déplacer · Échap : désélectionner</div>
+
+    <div class="loading" id="loading">
+      <div>
+        Chargement du modèle anatomique…
+        <div class="bar"><i id="loading-bar"></i></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script type="module" src="./js/app.js"></script>
+<!-- ARTIFACT-END -->
+</body>
+</html>
